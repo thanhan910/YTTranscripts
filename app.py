@@ -25,6 +25,7 @@ def get_languages():
     data = request.json
     print(request.json)
     video_id = data['video_id']
+    video_id = extract_video_id(video_id)
     try:
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         languages = [{"code": transcript.language_code, "name": transcript.language} for transcript in transcript_list]
@@ -52,9 +53,9 @@ def get_languages():
 
 @app.route('/api/transcript', methods=['POST'])
 def get_transcript():
-    print("request received")
     data = request.json
     video_id = data['video_id']
+    video_id = extract_video_id(video_id)
     language = data['language']
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])

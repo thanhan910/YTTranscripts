@@ -50,7 +50,7 @@
 
         function onPlayerReady(event) {
             // Load transcript related to this video
-            fetchTranscript();
+            // fetchTranscript();
             // Or optionally, play video automatically: event.target.playVideo();
             // synchronize transcript with video playback
             // synchronizeTranscript();
@@ -129,7 +129,8 @@
             document.getElementById('loading').style.display = 'block'; // Show loading indicator
             document.getElementById('transcript').style.display = 'none'; // Hide transcript during loading
 
-            const videoId = document.getElementById('video_id').value;
+            const videoQuery = document.getElementById('video_id').value;
+            const videoId = extract_video_id(videoQuery);
 
             const language = document.getElementById('language').value;
             const response = await fetch('/api/transcript', {
