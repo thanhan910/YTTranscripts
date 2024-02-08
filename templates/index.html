@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>YouTube Transcript Fetcher</title>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        var player;
+        var ytApiReady = false;
+        var currentHighlight = -1;
+        var transcriptData = [];
+
+        function extract_video_id(url_or_id) {
+            if (url_or_id.includes('youtube.com') || url_or_id.includes('youtu.be')) {
+                // Extract the video ID from the URL
+                if (url_or_id.includes('v=')) {
+                    return url_or_id.split('v=')[1].split('&')[0];
+                } else if (url_or_id.includes('youtu.be')) {
+                    return url_or_id.split('/').pop();
+                }
+            }
+            return url_or_id;
+        }
+
+        // Function called by YouTube IFrame API when API is ready
+        function onYouTubeIframeAPIReady() {
+            ytApiReady = true;
+        }
+
+        function createPlayer(videoId) {
+            // Check if the player already exists
+            if (player && player.loadVideoById) {
+                // Player exists, load the new video ID
+                player.loadVideoById(videoId);
+            } else if (ytApiReady) {
+                // Player doesn't exist, create a new one
+                player = new YT.Player('player', {
+                    height: '390',
+                    width: '640',
+                    videoId: videoId,
+                    events: {
+                        'onReady': onPlayerReady,
+                        'onStateChange': onPlayerStateChange
+                    }
+                });
+            } else {
+                console.error("YouTube IFrame API is not ready yet.");
+            }
+        }
+
+        function onPlayerReady(event) {
+            // Load transcript related to this video
+            fetchTranscript();
+            // Or optionally, play video automatically: event.target.playVideo();
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.PLAYING) {
+                synchronizeTranscript();
+            }
+        }
+
+        function synchronizeTranscript() {
+            var interval = setInterval(function() {
+                if (!player || !player.getCurrentTime) {
+                    clearInterval(interval);
+                    return;
+                }
+                var currentTime = player.getCurrentTime();
+                transcriptData.forEach((item, index) => {
+                    if (currentTime >= item.start && currentTime < item.end) {
+                        if (currentHighlight !== index) {
+                            highlightTranscript(index);
+                            currentHighlight = index;
+                        }
+                    }
+                });
+            }, 1000); // Check every second
+        }
+
+        function highlightTranscript(index) {
+            document.querySelectorAll('.transcript-line').forEach(el => el.classList.remove('highlight'));
+            var line = document.getElementById(`transcript-line-${index}`);
+            if (line) {
+                line.classList.add('highlight');
+            }
+        }
+
+        function jumpTo(time) {
+            if (player && player.seekTo) {
+                player.seekTo(time, true);
+            }
+        }
+
+        async function fetchLanguages() {
+            const videoId = document.getElementById('video_id').value;
+            console.log('Fetching languages for video ID:', videoId);
+            document.getElementById('player').style.display = 'none'; // Hide video player during loading
+            createPlayer(videoId); // Initialize the YouTube player with the provided video ID
+            document.getElementById('player').style.display = 'block'; // Show video player after loading
+            const response = await fetch('/api/languages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ video_id: videoId }),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const select = document.getElementById('language');
+                select.innerHTML = data.languages.map(lang => `<option value="${lang.code}">${lang.name}</option>`).join('');
+                select.style.display = 'inline'; // Show the select element
+                fetchTranscript(); // Fetch the transcript for the first language automatically
+            } else {
+                // Handle error
+                console.error('Failed to fetch languages');
+            }
+        }
+
+        async function fetchTranscript() {
+            document.getElementById('loading').style.display = 'block'; // Show loading indicator
+            document.getElementById('transcript').style.display = 'none'; // Hide transcript during loading
+
+            const videoId = document.getElementById('video_id').value;
+            
+            const language = document.getElementById('language').value;
+            const response = await fetch('/api/transcript', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ video_id: videoId, language: language }),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('transcript').innerText = data.transcript.map(item => item.text).join('\n');
+                document.getElementById('transcript').style.display = 'block'; // Show transcript
+            } else {
+                // Handle error
+                document.getElementById('transcript').innerText = 'Failed to fetch transcript';
+                document.getElementById('transcript').style.display = 'block';
+            }
+            document.getElementById('loading').style.display = 'none'; // Hide loading indicator after loading
+        }
+
+
+
+    </script>
+    <style>
+        .transcript-line {
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .highlight {
+            background-color: yellow;
+        }
+    </style>
+
+</head>
+
+<body>
+    <label for="video_id">YouTube Video ID:</label>
+    <input type="text" id="video_id" name="video_id">
+    <button onclick="fetchLanguages()">Load Languages</button>
+    <br>
+    <div id="player" style="white-space: pre-wrap;"></div>
+    <select id="language" style="display: none;" onchange="fetchTranscript()"></select>
+    <div id="loading" style="display: none;">Loading...</div>
+    <div id="transcript" style="white-space: pre-wrap;"></div>
+</body>
+
+</html>
