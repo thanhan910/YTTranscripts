@@ -52,6 +52,8 @@
             // Load transcript related to this video
             fetchTranscript();
             // Or optionally, play video automatically: event.target.playVideo();
+            // synchronize transcript with video playback
+            // synchronizeTranscript();
         }
 
         function onPlayerStateChange(event) {
@@ -61,28 +63,30 @@
         }
 
         function synchronizeTranscript() {
-            var interval = setInterval(function() {
-                if (!player || !player.getCurrentTime) {
-                    clearInterval(interval);
-                    return;
-                }
-                var currentTime = player.getCurrentTime();
-                transcriptData.forEach((item, index) => {
-                    if (currentTime >= item.start && currentTime < item.end) {
-                        if (currentHighlight !== index) {
-                            highlightTranscript(index);
-                            currentHighlight = index;
+            // Assuming you have your transcript data with timestamps in a global variable
+            // var transcriptData = []; // This should be populated with your actual transcript data
+            setInterval(function () {
+                if (player && player.getCurrentTime) {
+                    var currentTime = player.getCurrentTime();
+                    transcriptData.forEach((item, index) => {
+                        if (currentTime >= item.start && currentTime < item.start + item.duration) {
+                            highlightSentence(index);
                         }
-                    }
-                });
-            }, 1000); // Check every second
+                    });
+                }
+            }, 10); // Check every 10 milliseconds
         }
 
-        function highlightTranscript(index) {
-            document.querySelectorAll('.transcript-line').forEach(el => el.classList.remove('highlight'));
-            var line = document.getElementById(`transcript-line-${index}`);
-            if (line) {
-                line.classList.add('highlight');
+        function highlightSentence(index) {
+            // Remove highlighting from all sentences
+            document.querySelectorAll('.transcript-line').forEach(el => {
+                el.classList.remove('highlight');
+            });
+
+            // Highlight the current sentence
+            var currentSentence = document.getElementById(`transcript-line-${index}`);
+            if (currentSentence) {
+                currentSentence.classList.add('highlight');
             }
         }
 
@@ -93,11 +97,15 @@
         }
 
         async function fetchLanguages() {
-            const videoId = document.getElementById('video_id').value;
-            console.log('Fetching languages for video ID:', videoId);
             document.getElementById('player').style.display = 'none'; // Hide video player during loading
+
+            const videoQuery = document.getElementById('video_id').value;
+            const videoId = extract_video_id(videoQuery);
+            
             createPlayer(videoId); // Initialize the YouTube player with the provided video ID
+            
             document.getElementById('player').style.display = 'block'; // Show video player after loading
+            
             const response = await fetch('/api/languages', {
                 method: 'POST',
                 headers: {
@@ -122,7 +130,7 @@
             document.getElementById('transcript').style.display = 'none'; // Hide transcript during loading
 
             const videoId = document.getElementById('video_id').value;
-            
+
             const language = document.getElementById('language').value;
             const response = await fetch('/api/transcript', {
                 method: 'POST',
@@ -133,7 +141,8 @@
             });
             if (response.ok) {
                 const data = await response.json();
-                document.getElementById('transcript').innerText = data.transcript.map(item => item.text).join('\n');
+                transcriptData = data.transcript;
+                document.getElementById('transcript').innerHTML = data.transcript.map((item, index) => `<span class="transcript-line" id="transcript-line-${index}" onclick="jumpTo(${item.start})">${item.text}</span>`).join('\n');
                 document.getElementById('transcript').style.display = 'block'; // Show transcript
             } else {
                 // Handle error
