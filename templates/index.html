@@ -101,7 +101,7 @@
 
             const videoQuery = document.getElementById('video_id').value;
             const videoId = extract_video_id(videoQuery);
-            
+
             createPlayer(videoId); // Initialize the YouTube player with the provided video ID
             
             document.getElementById('player').style.display = 'block'; // Show video player after loading
@@ -142,7 +142,7 @@
             if (response.ok) {
                 const data = await response.json();
                 transcriptData = data.transcript;
-                document.getElementById('transcript').innerHTML = data.transcript.map((item, index) => `<span class="transcript-line" id="transcript-line-${index}" onclick="jumpTo(${item.start})">${item.text}</span>`).join('\n');
+                document.getElementById('transcript').innerHTML = data.transcript.map((item, index) => `<span class="transcript-line" id="transcript-line-${index}" onclick="jumpTo(${item.start})">${item.text}</span>`).join(' ');
                 document.getElementById('transcript').style.display = 'block'; // Show transcript
             } else {
                 // Handle error
@@ -152,7 +152,14 @@
             document.getElementById('loading').style.display = 'none'; // Hide loading indicator after loading
         }
 
-
+        function copyToClipboard() {
+            var text = transcriptData.map(item => item.text).join(' ');
+            navigator.clipboard.writeText(text).then(function () {
+                console.log('Transcript copied to clipboard');
+            }, function (err) {
+                console.error('Failed to copy transcript to clipboard', err);
+            });
+        }
 
     </script>
     <style>
@@ -175,6 +182,7 @@
     <br>
     <div id="player" style="white-space: pre-wrap;"></div>
     <select id="language" style="display: none;" onchange="fetchTranscript()"></select>
+    <button onclick="copyToClipboard()">Copy Transcript</button>
     <div id="loading" style="display: none;">Loading...</div>
     <div id="transcript" style="white-space: pre-wrap;"></div>
 </body>
