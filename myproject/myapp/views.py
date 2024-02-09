@@ -1,5 +1,6 @@
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
@@ -8,6 +9,7 @@ from pytube import YouTube
 import os
 import re
 import logging
+import json
 
 logging.basicConfig(level=logging.INFO)
 model = whisper.load_model("base")
@@ -27,10 +29,12 @@ def index(request):
     return render(request, 'index.html')
 
 
+@csrf_exempt
 def get_languages(request):
     if request.method == "POST":
+        print([method for method in dir(request) if not method.startswith("_")])
         # Implement the logic similar to Flask's get_languages function
-        data = request.json
+        data = json.loads(request.body)
         video_id = data["video_id"]
         video_id = extract_video_id(video_id)
         try:
@@ -39,12 +43,12 @@ def get_languages(request):
                 {"code": transcript.language_code, "name": transcript.language}
                 for transcript in transcript_list
             ]
-            return JsonResponse(languages=languages)
+            return JsonResponse({ 'languages' : languages })
         except Exception as e:
-            return JsonResponse(error=str(e), status=500)
+            return JsonResponse({'error' : str(e), 'status' : 500})
         
 
-
+@csrf_exempt
 def get_transcript(request):
     """
     Use OpenAI Whisper to transcribe the audio of a YouTube video.
@@ -52,17 +56,18 @@ def get_transcript(request):
     Credit: https://huggingface.co/spaces/SteveDigital/free-fast-youtube-url-video-to-text-using-openai-whisper
     """
     if request.method == "POST":
-        data = request.json
+        data = json.loads(request.body)
         video_id = data["video_id"]
         video_id = extract_video_id(video_id)
         language = data["language"]
         try:
             transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
-            return JsonResponse(transcript=transcript)
+            return JsonResponse({'transcript' : transcript})
         except Exception as e:
-            return JsonResponse(error=str(e), status=500)
+            return JsonResponse({'error' : str(e), 'status' : 500})
 
 
+@csrf_exempt
 def get_video_text_whisper(request):
     """
     Use OpenAI Whisper to transcribe the audio of a YouTube video.
@@ -71,13 +76,13 @@ def get_video_text_whisper(request):
     """
     if request.method == "POST":
 
-        data = request.json
+        data = json.loads(request.body)
         video_id = data["video_id"]
         
         video_id = extract_video_id(video_id)
         
         if video_id == "":
-            return JsonResponse(error="Invalid video ID"), 400
+            return JsonResponse({'error' : "Invalid video ID"}), 400
         
         url = f"https://www.youtube.com/watch?v={video_id}"
 
@@ -92,7 +97,7 @@ def get_video_text_whisper(request):
         out_file = video.download(output_path=".", filename=filename)
         logging.info(f"Downloaded audio file: {out_file}")
         if out_file is None:
-            return JsonResponse(error="Failed to download audio file"), 400
+            return JsonResponse({'error' : "Failed to download audio file"}), 400
         
         file_stats = os.stat(out_file)
         logging.info(f"Size of audio file in Bytes: {file_stats.st_size}")
@@ -107,11 +112,11 @@ def get_video_text_whisper(request):
             result = model.transcribe(a)
             os.remove(new_file) if os.path.exists(new_file) else None
             os.remove(out_file) if os.path.exists(out_file) else None
-            return JsonResponse(transcript=result["text"].strip())
+            return JsonResponse({'transcript' : result["text"].strip()})
         else:
             logging.error("File size is too large")
             os.remove(out_file) if os.path.exists(out_file) else None
-            return JsonResponse(error="File size is too large"), 400
+            return JsonResponse({'error' : "File size is too large"}), 400
 
 
 
