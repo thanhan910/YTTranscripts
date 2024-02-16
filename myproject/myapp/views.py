@@ -3,16 +3,20 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.formatters import TextFormatter
-import whisper
-from pytube import YouTube
-import os
-import re
 import logging
 import json
+import os
+
+# from youtube_transcript_api.formatters import TextFormatter
+# import whisper
+# from pytube import YouTube
+# import re
+
+from .utils.youtube_utils import extract_video_id, download_audio
+from .utils.whisper_utils import model as whisper_model
 
 logging.basicConfig(level=logging.INFO)
-model = whisper.load_model("base")
+# model = whisper.load_model("base")
 
 
 def extract_video_id(url_or_id):
@@ -69,54 +73,30 @@ def get_transcript(request):
 
 @csrf_exempt
 def get_video_text_whisper(request):
-    """
-    Use OpenAI Whisper to transcribe the audio of a YouTube video.
-
-    Credit: https://huggingface.co/spaces/SteveDigital/free-fast-youtube-url-video-to-text-using-openai-whisper
-    """
     if request.method == "POST":
-
         data = json.loads(request.body)
         video_id = data["video_id"]
-        
         video_id = extract_video_id(video_id)
-        
         if video_id == "":
-            return JsonResponse({'error' : "Invalid video ID"}), 400
+            return JsonResponse({'error': "Invalid video ID"}, status=400)
         
-        url = f"https://www.youtube.com/watch?v={video_id}"
-
-        yt_obj = YouTube(url)
-        
-        video = yt_obj.streams.filter(only_audio=True).first()
-
-        # out_file = video.download(output_path="./local", filename_prefix="local-", filename="local-audio")
-        # Remove local-audio.mp3
-        filename = "local-audio.mp3"
-        os.remove(filename) if os.path.exists(filename) else None
-        out_file = video.download(output_path=".", filename=filename)
-        logging.info(f"Downloaded audio file: {out_file}")
+        out_file = download_audio(video_id)
         if out_file is None:
-            return JsonResponse({'error' : "Failed to download audio file"}), 400
+            return JsonResponse({'error': "Failed to download audio file"}, status=400)
         
-        file_stats = os.stat(out_file)
-        logging.info(f"Size of audio file in Bytes: {file_stats.st_size}")
-
-        file_size_benchmark = 30_000_000
-
-        if file_stats.st_size <= file_size_benchmark:
-            base, ext = os.path.splitext(out_file)
-            new_file = base + ".mp3"
-            os.rename(out_file, new_file)
-            a = new_file
-            result = model.transcribe(a)
-            os.remove(new_file) if os.path.exists(new_file) else None
-            os.remove(out_file) if os.path.exists(out_file) else None
-            return JsonResponse({'transcript' : result["text"].strip()})
-        else:
-            logging.error("File size is too large")
-            os.remove(out_file) if os.path.exists(out_file) else None
-            return JsonResponse({'error' : "File size is too large"}), 400
-
-
-
+        try:
+            file_stats = os.stat(out_file)
+            if file_stats.st_size <= 30_000_000:
+                base, ext = os.path.splitext(out_file)
+                new_file = base + ".mp3"
+                os.rename(out_file, new_file)
+                result = whisper_model.transcribe(new_file)
+                os.remove(new_file)
+                return JsonResponse({'transcript': result["text"].strip()})
+            else:
+                logging.error("File size is too large")
+                os.remove(out_file)
+                return JsonResponse({'error': "File size is too large"}, status=400)
+        except Exception as e:
+            logging.error(f"Error processing audio file: {str(e)}")
+            return JsonResponse({'error': "Error processing audio file"}, status=500)
