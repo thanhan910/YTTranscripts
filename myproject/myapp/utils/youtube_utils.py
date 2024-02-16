@@ -29,7 +29,7 @@ def download_audio(video_id):
     
     try:
         # Download the video to the media folder
-        video = yt_obj.streams.filter(only_video=True).first()
+        video = yt_obj.streams.filter(only_audio=True).first()
         video.download(output_path=MEDIA_ROOT, filename=filename)
         return output_path  # Return the path to the downloaded video
     except Exception as e:

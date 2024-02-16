@@ -90,12 +90,13 @@ def get_video_text_whisper(request):
                 base, ext = os.path.splitext(out_file)
                 new_file = base + ".mp3"
                 os.rename(out_file, new_file)
+                new_file = os.path.abspath(new_file)
+                print(f"Transcribing audio file: {new_file}")
                 result = whisper_model.transcribe(new_file)
-                os.remove(new_file)
+                print(f"Transcription result: {result}")
                 return JsonResponse({'transcript': result["text"].strip()})
             else:
                 logging.error("File size is too large")
-                os.remove(out_file)
                 return JsonResponse({'error': "File size is too large"}, status=400)
         except Exception as e:
             logging.error(f"Error processing audio file: {str(e)}")
