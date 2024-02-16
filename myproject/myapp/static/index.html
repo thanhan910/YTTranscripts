@@ -32,7 +32,10 @@
             // Check if the player already exists
             if (player && player.loadVideoById) {
                 // Player exists, load the new video ID if it's different from the current one
+                console.log('Old video ID:', currentVideoId);
+                console.log('Loading video ID:', videoId);
                 if (currentVideoId !== videoId) {
+                    currentVideoId = videoId;
                     player.loadVideoById(videoId);
                 }
             } else if (ytApiReady) {
@@ -105,8 +108,6 @@
             const videoQuery = document.getElementById('video_id').value;
             const videoId = extract_video_id(videoQuery);
 
-            currentVideoId = videoId;
-
             createPlayer(videoId); // Initialize the YouTube player with the provided video ID
             
             document.getElementById('player').style.display = 'block'; // Show video player after loading
@@ -168,8 +169,6 @@
             
             const videoQuery = document.getElementById('video_id').value;
             const videoId = extract_video_id(videoQuery);
-
-            currentVideoId = videoId;
 
             createPlayer(videoId); // Initialize the YouTube player with the provided video ID
 
